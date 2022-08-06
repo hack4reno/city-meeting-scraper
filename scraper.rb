@@ -57,7 +57,7 @@ class AgendaScraper
     # save these to S3 by meeting
   end
 
-  def initialize()
+  def init()
     local_file = ENV['LOCAL_PORTAL_FILE'] || false
 
     if local_file
@@ -90,4 +90,4 @@ class AgendaScraper
   end
 end
 
-AgendaScraper.new.initialize
+AgendaScraper.new.init
