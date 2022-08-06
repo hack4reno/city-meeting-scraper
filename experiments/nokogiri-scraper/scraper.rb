@@ -57,13 +57,13 @@ class AgendaScraper
     # save these to S3 by meeting
   end
 
-  def initialize
+  def initialize()
     local_file = ENV['LOCAL_PORTAL_FILE'] || false
 
     if local_file
       puts "Using local file"
 
-      file_contents = File.open("./source-data/meeting-calendar.html")
+      file_contents = File.open(local_file)
 
       process(file_contents)
     else
