@@ -1,14 +1,35 @@
 require 'uri'
 require 'dotenv/load'
 require 'net/http'
-require 'byebug'
 require 'nokogiri'
 require 'json'
 require 'cgi'
 require 'open-uri'
-
+require 'byebug'
+require './services/s3_uploader'
 
 class AgendaScraper
+
+  def initialize()
+    local_file = ENV['LOCAL_PORTAL_FILE'] || false
+    @s3_enabled = ENV['UPLOAD_TO_S3'] == "true" ? true : false
+    display_s3_status
+
+    if local_file
+      puts "✅ Using local file as import source"
+
+      file_contents = File.open(local_file)
+
+      process(file_contents)
+    else
+      puts "✅ Using live URL as import source"
+
+      uri = URI.parse(ENV["CITY_PORTAL_URL"])
+      response = Net::HTTP.get_response(uri)
+
+      process(response.body)
+    end
+  end
 
   def parse_video_link(video_viewer_onclick)
     video_viewer_url_1 = video_viewer_onclick&.to_str&.sub("javascript:OpenWindow(\"", "")
@@ -64,6 +85,23 @@ class AgendaScraper
     end
   end
 
+  def process(html)
+    doc = Nokogiri::HTML(html)
+
+    meeting_rows = doc.css('.Row.MeetingRow')
+  
+    meeting_rows.each do |meeting_row|
+      meeting = parse_meeting(meeting_row)
+      download_meeting(meeting)
+    end
+
+    # TODO: This is a test, it will run once
+    # TO be moved into process_meeting
+    upload_file
+  end
+
+  private 
+
   def parse_meeting(meeting)
 
     datetime = meeting.css('div.RowLink a').text
@@ -93,39 +131,22 @@ class AgendaScraper
 
     end
 
-    # date
-    # time
-    # location
-    # meeting_body
-    # is_cancelled
-    # agenda
-    # agenda_packet
-    # minutes
-    # journal
-    # agenda_table
-    # agenda_item_timestamp
-    # agenda_items
-    # meeting_attachments
-
     { datetime: datetime, meeting_body: meeting_body, agenda: agenda, agenda_packet: agenda_packet, minutes: minutes, journal: journal, video: video, video_file: video_file }
   end
 
-  def download_meeting(meeting)
-    # download the meeting
-    # download the agenda
-    # download the agenda packet
-    # download the minutes
-    # download the journal
-    # download the video
-    puts meeting
-
-    # follow each link and download the file
-    # how can we get the video?
-
-    # save these to S3 by meeting
+  def process_meeting(meeting)
+    # download the linked meeting page as html
+    # download the meeting files locally
+    # download the meeting video if available
+    # upload each item to S3
+    # delete the local meetingi tems
   end
 
-  def init()
+  def download_meeting(meeting)
+    puts meeting
+  end
+
+  def initialize
     local_file = ENV['LOCAL_PORTAL_FILE'] || false
 
     if local_file
@@ -156,6 +177,16 @@ class AgendaScraper
       download_meeting(meeting)
     end
   end
+
+  def upload_file
+    return unless @s3_enabled
+    # TODO: make this dynamic based on the downloaded file and meeting id, filename and/or timestamp
+    Services::S3Uploader.new(local_file: './source-data/2198.pdf', key: '2198.pdf').upload
+  end
+
+  def display_s3_status
+    puts "#{@s3_enabled ? '✅' : '🔴'} S3 uploads are #{@s3_enabled ? 'enabled' : 'disabled'}."
+  end
 end
 
-AgendaScraper.new.init
+AgendaScraper.new

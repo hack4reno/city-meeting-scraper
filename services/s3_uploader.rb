@@ -2,27 +2,38 @@ require 'aws-sdk-s3'
 
 module Services
   class S3Uploader
-    def initialize
+    def initialize(local_file:, key:)
+      @local_file = local_file
+      @key = key
       @client = Aws::S3::Client.new(
         region: ENV['AWS_REGION'],
         credentials: aws_credentials
       )
     end
 
+    # TODO: Iterate on key to support folders and different filenames / types
     def upload
-      file_url = "../source-data/2198.pdf"
-
+      if key_exists_in_s3?(@key)
+        puts "✅ File #{@local_file} already exists in S3 as #{@key}."
+        return
+      end
+      puts "⬆️  Uploading #{@local_file} to S3 as #{@key}..."
       s3 = Aws::S3::Resource.new
       bucket = s3.bucket(ENV['AWS_BUCKET_NAME'])
-      object = bucket.object("2198.pdf")
-      object.upload_file(file_url)
+      object = bucket.object(@key)
+      object.upload_file(@local_file)
+      puts "✅ Upload done for #{@key}"
+
+      # TODO: add error handling
+      # puts "❌ Failed to upload #{@local_file} to S3 as #{@key}"
     end
 
     private
 
-    def exists?(key)
-      # TODO: feature to check if key exists in S3 already
-      # check if the file is already in the bucket
+    def key_exists_in_s3?(key)
+      s3 = Aws::S3::Resource.new
+      bucket = s3.bucket(ENV['AWS_BUCKET_NAME'])
+      bucket.object(key).exists?
     end
 
     def aws_credentials
