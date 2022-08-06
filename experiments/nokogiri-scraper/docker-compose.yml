@@ -1,0 +1,9 @@
+services:
+  scraper:
+    build:
+      context: ./
+    volumes:
+      - ./:/usr/src/app
+    env_file:
+      - ./.env
+    command: ruby scraper.rb

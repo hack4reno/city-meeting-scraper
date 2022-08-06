@@ -26,3 +26,13 @@ CITY_PORTAL_URL="http://renocitynv.iqm2.com/Citizens/calendar.aspx?From=1/1/1900
 ```
 ruby scraper.rb
 ```
+
+
+## Using with Docker
+
+Start from the `experiments/nokogiri-scraper` directory.
+
+ 1. Build the docker image:
+    * `docker-compose build`
+ 2. Run the docker image:
+    * `docker-compose run --rm scraper`
