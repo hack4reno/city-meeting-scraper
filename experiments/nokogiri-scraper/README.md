@@ -20,3 +20,9 @@ The `CITY_PORTAL_URL` should be the iqm2 portal calendar URL.
 # Example for the City of Reno IQM2 portal with dates from 1/1/1900 to 12/31/9999
 CITY_PORTAL_URL="http://renocitynv.iqm2.com/Citizens/calendar.aspx?From=1/1/1900&To=12/31/9999"
 ```
+
+### Run the test scraper
+
+```
+ruby scraper.rb
+```
