@@ -1,7 +1,6 @@
-require 'aws-sdk-s3'
-
+# frozen_string_literal: true
 module Services
-  class S3Uploader
+  class S3Uploader < ScraperService
     def initialize(local_file:, key:)
       @local_file = local_file
       @key = key
@@ -12,7 +11,7 @@ module Services
     end
 
     # TODO: Iterate on key to support folders and different filenames / types
-    def upload
+    def call
       if key_exists_in_s3?(@key)
         puts "✅ File #{@local_file} already exists in S3 as #{@key}."
         return
