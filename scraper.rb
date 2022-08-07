@@ -1,14 +1,54 @@
 require 'uri'
 require 'dotenv/load'
 require 'net/http'
-require 'byebug'
 require 'nokogiri'
 require 'json'
 require 'cgi'
 require 'open-uri'
-
+require 'byebug'
+require './services/s3_uploader'
 
 class AgendaScraper
+
+  def initialize()
+    local_file = ENV['LOCAL_PORTAL_FILE'] || false
+    @s3_enabled = ENV['UPLOAD_TO_S3'] == "true" ? true : false
+    display_s3_status
+
+    if local_file
+      puts "✅ Using local file as import source"
+
+      file_contents = File.open(local_file)
+
+      @html_to_parse = file_contents
+    else
+      puts "✅ Using live URL as import source"
+
+      uri = URI.parse(ENV["CITY_PORTAL_URL"])
+      response = Net::HTTP.get_response(uri)
+
+      @html_to_parse = response.body
+    end
+  end
+
+  def process
+    doc = Nokogiri::HTML(@html_to_parse)
+
+    meeting_rows = doc.css('.Row.MeetingRow')
+
+    test_meeting = meeting_rows.first
+
+    meeting_rows.reverse.each do |meeting_row|
+      meeting = parse_meeting(meeting_row)
+      download_meeting(meeting)
+    end
+
+    # TODO: This is a test, to upload a single test file
+    # Include in the above loop when ready
+    upload_file
+  end
+  
+  private
 
   def parse_video_link(video_viewer_onclick)
     video_viewer_url_1 = video_viewer_onclick&.to_str&.sub("javascript:OpenWindow(\"", "")
@@ -23,29 +63,27 @@ class AgendaScraper
     # end
   end
 
+
   def parse_video_viewer(video_viewer_url)
 
     local_viewer_file = ENV['LOCAL_VIDEO_VIEWER_SAMPLE_FILE'] || false
 
     if local_viewer_file
-      puts "Using local viewer file for development ONLY"
+      puts "✅ Using local viewer file for development ONLY"
 
       html = File.open(local_viewer_file)
 
     else
-      # puts "Using live viewer URL"
+      puts "✅ Using live viewer URL"
 
       uri = URI.parse("#{ENV["CITY_PORTAL_URL"]}#{video_viewer_url}")
-      video_viewer_url and puts "video_viewer_url: #{uri}"
+      video_viewer_url and puts "✅ video_viewer_url: #{uri}"
       response = Net::HTTP.get_response(uri)
 
       html = response.body
-
     end
 
     doc = Nokogiri::HTML(html)
-
-    # puts doc
 
     video_script = doc.search("script")[20].text
     # puts video_script
@@ -59,8 +97,8 @@ class AgendaScraper
   end
 
   def save_file(file_url, file_name)
-    open("#{file_name}", 'wb') do |file|
-      file << open(file_url).read
+    URI.open("#{file_name}", 'wb') do |file|
+      file << URI.open(file_url).read
     end
   end
 
@@ -89,73 +127,35 @@ class AgendaScraper
       video_file_name = "#{CGI.escape(datetime)}.mpeg4"
       video_file_name and puts "video_file_name: #{video_file_name}"
       video_file and save_file(video_file, video_file_name)
-      video_file and exit
-
+      
+      # TODO: prototype will only download one video right now - to fix
+      exit
     end
-
-    # date
-    # time
-    # location
-    # meeting_body
-    # is_cancelled
-    # agenda
-    # agenda_packet
-    # minutes
-    # journal
-    # agenda_table
-    # agenda_item_timestamp
-    # agenda_items
-    # meeting_attachments
 
     { datetime: datetime, meeting_body: meeting_body, agenda: agenda, agenda_packet: agenda_packet, minutes: minutes, journal: journal, video: video, video_file: video_file }
   end
 
+  def process_meeting(meeting)
+    # download the linked meeting page as html
+    # download the meeting files locally
+    # download the meeting video if available
+    # upload each item to S3
+    # delete the local meetingi tems
+  end
+
   def download_meeting(meeting)
-    # download the meeting
-    # download the agenda
-    # download the agenda packet
-    # download the minutes
-    # download the journal
-    # download the video
     puts meeting
-
-    # follow each link and download the file
-    # how can we get the video?
-
-    # save these to S3 by meeting
   end
 
-  def init()
-    local_file = ENV['LOCAL_PORTAL_FILE'] || false
-
-    if local_file
-      puts "Using local meeting list file"
-
-      file_contents = File.open(local_file)
-
-      process(file_contents)
-    else
-      # puts "Using live meeting list URL"
-
-      uri = URI.parse(ENV["CITY_PORTAL_MEETING_LIST_URL"])
-      response = Net::HTTP.get_response(uri)
-
-      process(response.body)
-    end
+  def upload_file
+    return unless @s3_enabled
+    # TODO: make this dynamic based on the downloaded file and meeting id, filename and/or timestamp
+    Services::S3Uploader.new(local_file: './source-data/2198.pdf', key: '2198.pdf').upload
   end
 
-  def process(html)
-    doc = Nokogiri::HTML(html)
-
-    meeting_rows = doc.css('.Row.MeetingRow')
-
-    test_meeting = meeting_rows.first
-
-    meeting_rows.reverse.each do |meeting_row|
-      meeting = parse_meeting(meeting_row)
-      download_meeting(meeting)
-    end
+  def display_s3_status
+    puts "#{@s3_enabled ? '✅' : '🔴'} S3 uploads are #{@s3_enabled ? 'enabled' : 'disabled'}."
   end
 end
 
-AgendaScraper.new.init
+AgendaScraper.new.process
